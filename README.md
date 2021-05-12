@@ -16,6 +16,7 @@ http://localhost:8080/untrust - не требует токена
 http://localhost:8080/trust - требует токен
 
 Тестовый токен
+
 eyJraWQiOiI4ZTM1YmViNy1hOGZlLTQ1ZDgtODhjOC1iNzk4MjMzNzhiNT
 ciLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJVcmFsc2l
 iIiwicm9sZXMiOlsiYWRtaW4iLCJ1c2VyIl0sImlzcyI6InNhbXBsZSIsIm
