@@ -1,0 +1,8 @@
+version: '3'
+services:
+  web:
+    image: nginx
+    volumes:
+      - ./jwks.json:/usr/share/nginx/html/.well-known/jwks.json
+    ports:
+      - "8081:80"

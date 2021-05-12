@@ -1,9 +1,16 @@
-package jwt;
+package jwt.security;
 
-import com.sun.tools.javac.util.List;
+import com.auth0.jwk.JwkException;
+import com.auth0.jwk.JwkProvider;
+import com.auth0.jwk.JwkProviderBuilder;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -14,16 +21,24 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.security.interfaces.RSAPublicKey;
+import java.util.ArrayList;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.springframework.util.StringUtils.isEmpty;
 
 @Component
 public class JwtTokenFilter extends OncePerRequestFilter {
 
-    private JwtTokenUtil jwtTokenUtil;
+    private final JwkProvider provider;
+    private final String Issuer = "sample";
 
-    public JwtTokenFilter(JwtTokenUtil jwtTokenUtil) {
-        this.jwtTokenUtil = jwtTokenUtil;
+    public JwtTokenFilter() {
+        this.provider = new JwkProviderBuilder("http://localhost:8081")
+                .cached(10, 24, TimeUnit.HOURS)
+                .build();
+
     }
 
     @Override
@@ -41,21 +56,16 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         // Get jwt token and validate
         final String token = header.split(" ")[1].trim();
-        if (!jwtTokenUtil.validate(token)) {
+
+        Optional<DecodedJWT> jwt = validate(token);
+
+        if (jwt.isEmpty()) {
             chain.doFilter(request, response);
             return;
         }
 
-        // Get user identity and set it on the spring security context
-        UserDetails userDetails = userRepo
-                .findByUsername(jwtTokenUtil.getUsername(token))
-                .orElse(null);
-
         UsernamePasswordAuthenticationToken
-                authentication = new UsernamePasswordAuthenticationToken(
-                userDetails, null,
-                userDetails == userDetails.getAuthorities()
-        );
+                authentication = new UsernamePasswordAuthenticationToken(jwt.get().getSubject(), null, new ArrayList<>());
 
         authentication.setDetails(
                 new WebAuthenticationDetailsSource().buildDetails(request)
@@ -63,5 +73,23 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         chain.doFilter(request, response);
+    }
+
+    private Optional<DecodedJWT> validate(String token) {
+        DecodedJWT jwt = JWT.decode(token);
+
+        Algorithm algorithm = null;
+
+        try {
+            algorithm = Algorithm.RSA256((RSAPublicKey) provider.get(jwt.getKeyId()).getPublicKey(), null);
+
+            JWTVerifier verifier = JWT.require(algorithm)
+                    .withIssuer(Issuer)
+                    .build();
+
+            return Optional.of(verifier.verify(jwt));
+        } catch (JwkException e) {
+            return Optional.empty();
+        }
     }
 }
